@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaskHub</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { margin-bottom: .2rem; } .sub { color: #666; margin-top: 0; }
+  input, button { padding: .5rem .7rem; font-size: 1rem; }
+  button { cursor: pointer; }
+  .row { display: flex; gap: .5rem; margin: .5rem 0; }
+  .row input { flex: 1; }
+  ul { list-style: none; padding: 0; }
+  li { display: flex; justify-content: space-between; align-items: center; padding: .5rem; border-bottom: 1px solid #eee; }
+  .done span.t { text-decoration: line-through; color: #888; }
+  .tag { font-size: .75rem; background: #eef; padding: .1rem .4rem; border-radius: 4px; margin-left: .4rem; }
+  .err { color: #b00020; min-height: 1.2rem; }
+  .hidden { display: none; }
+  table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: .3rem; border-bottom: 1px solid #eee; }
+</style>
+</head>
+<body>
+<h1>TaskHub</h1>
+<p class="sub">Two-tier demo: web app + PostgreSQL, with admin/user roles</p>
+<p class="err" id="err"></p>
+
+<section id="loginView">
+  <div class="row"><input id="u" placeholder="username"></div>
+  <div class="row"><input id="p" type="password" placeholder="password (min 8 chars)"></div>
+  <div class="row"><button onclick="login()">Login</button><button onclick="register()">Register</button></div>
+</section>
+
+<section id="appView" class="hidden">
+  <p>Logged in as <b id="who"></b> <span class="tag" id="role"></span> <button onclick="logout()">Logout</button></p>
+  <div class="row"><input id="title" placeholder="New task"><button onclick="addTask()">Add</button></div>
+  <ul id="tasks"></ul>
+  <div id="adminView" class="hidden">
+    <h3>Admin: users</h3>
+    <table><thead><tr><th>ID</th><th>User</th><th>Role</th><th></th></tr></thead><tbody id="users"></tbody></table>
+  </div>
+</section>
+
+<script>
+let session = JSON.parse(sessionStorage.getItem('session') || 'null');
+const $ = (id) => document.getElementById(id);
+
+async function api(path, method = 'GET', body) {
+  const res = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: 'Bearer ' + session.token } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { $('err').textContent = data.error || 'Error'; throw new Error(data.error); }
+  $('err').textContent = '';
+  return data;
+}
+
+async function register() { await api('/api/register', 'POST', { username: $('u').value, password: $('p').value }); $('err').textContent = 'Registered. Now login.'; }
+async function login() {
+  session = await api('/api/login', 'POST', { username: $('u').value, password: $('p').value });
+  sessionStorage.setItem('session', JSON.stringify(session)); render();
+}
+function logout() { session = null; sessionStorage.removeItem('session'); render(); }
+
+async function addTask() { await api('/api/tasks', 'POST', { title: $('title').value }); $('title').value = ''; load(); }
+async function toggle(id) { await api('/api/tasks/' + id + '/toggle', 'PATCH'); load(); }
+async function del(id) { await api('/api/tasks/' + id, 'DELETE'); load(); }
+async function setRole(id, role) { await api('/api/users/' + id + '/role', 'PATCH', { role }); load(); }
+async function delUser(id) { await api('/api/users/' + id, 'DELETE'); load(); }
+
+async function load() {
+  const tasks = await api('/api/tasks');
+  const ul = $('tasks'); ul.innerHTML = '';
+  tasks.forEach((t) => {
+    const li = document.createElement('li'); if (t.done) li.className = 'done';
+    const left = document.createElement('div');
+    const title = document.createElement('span'); title.className = 't'; title.textContent = t.title;
+    const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = t.owner;
+    left.append(title, tag);
+    const right = document.createElement('div');
+    const b1 = document.createElement('button'); b1.textContent = t.done ? 'Undo' : 'Done'; b1.onclick = () => toggle(t.id);
+    const b2 = document.createElement('button'); b2.textContent = 'Delete'; b2.onclick = () => del(t.id);
+    right.append(b1, ' ', b2); li.append(left, right); ul.append(li);
+  });
+  if (session.role === 'admin') {
+    const users = await api('/api/users');
+    const tb = $('users'); tb.innerHTML = '';
+    users.forEach((u) => {
+      const tr = document.createElement('tr');
+      [u.id, u.username, u.role].forEach((v) => { const td = document.createElement('td'); td.textContent = v; tr.append(td); });
+      const td = document.createElement('td');
+      if (u.username !== session.username) {
+        const r = document.createElement('button'); r.textContent = u.role === 'admin' ? 'Make user' : 'Make admin';
+        r.onclick = () => setRole(u.id, u.role === 'admin' ? 'user' : 'admin');
+        const d = document.createElement('button'); d.textContent = 'Delete'; d.onclick = () => delUser(u.id);
+        td.append(r, ' ', d);
+      }
+      tr.append(td); tb.append(tr);
+    });
+  }
+}
+
+function render() {
+  $('loginView').classList.toggle('hidden', !!session);
+  $('appView').classList.toggle('hidden', !session);
+  $('adminView').classList.toggle('hidden', !session || session.role !== 'admin');
+  if (session) { $('who').textContent = session.username; $('role').textContent = session.role; load().catch(logout); }
+}
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+# Do tiers ek saath chalane ke liye:
+#   Tier 1: app (Node.js)   Tier 2: db (PostgreSQL)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: taskhub
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: taskhub
+    volumes:
+      - dbdata:/var/lib/postgresql/data   # container delete ho tab bhi data bacha rahe
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: ./app
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db            # compose network mein service ka naam hi hostname hai
+      DB_USER: taskhub
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: taskhub
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata:

@@ -1,0 +1,15 @@
+{
+  "name": "taskhub",
+  "version": "1.0.0",
+  "description": "Two-tier task manager with role-based access (admin/user) for DevOps practice",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.12.0"
+  }
+}
