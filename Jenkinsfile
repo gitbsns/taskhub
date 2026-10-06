@@ -1,27 +1,29 @@
 // ============================================================
-// TaskHub - CI Pipeline (Phase 3)
+// TaskHub - CI/CD Pipeline (Phase 3 + Phase 5)
 //
-// Ye pipeline sirf itna karta hai: code -> test -> image build -> Docker Hub push.
-// Kubernetes deploy Phase 5 mein add hoga, abhi is Jenkinsfile mein nahi hai.
+// Build -> Push -> Deploy to Kubernetes, automatically.
 //
-// Zaroori Jenkins Credential (Step 2 mein bana):
-//   dockerhub-creds  -> Username/Password (token)
+// Jenkins Credentials zaroori hain:
+//   dockerhub-creds      -> Username/Password (Docker Hub token)
+//   kubeconfig-taskhub   -> Secret file (taskhub-kubeconfig.yaml)
 // ============================================================
 
 pipeline {
     agent any
 
     environment {
-        DOCKERHUB_USER = 'ahbdoc'   // yahan apna username daalo
+        DOCKERHUB_USER = 'ahbdoc'
         IMAGE_NAME     = "${DOCKERHUB_USER}/taskhub-app"
-        IMAGE_TAG      = "${BUILD_NUMBER}"            // har build ka apna unique tag
+        IMAGE_TAG      = "${BUILD_NUMBER}"
+        K8S_NAMESPACE  = 'taskhub'
+        DEPLOYMENT     = 'taskhub-app'
+        CONTAINER_NAME = 'taskhub-app'
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                // Jenkins job configuration mein diya GitHub URL se code khinchta hai
                 echo 'Pulling latest code from GitHub...'
                 checkout scm
             }
@@ -29,7 +31,6 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                // Sirf app/ folder ke dependencies chahiye, root mein package.json nahi
                 dir('app') {
                     echo 'Installing npm dependencies...'
                     sh 'npm install'
@@ -39,7 +40,6 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                // Dockerfile app/ folder ke andar hai, isliye context wahi dena hoga
                 echo "Building image: ${IMAGE_NAME}:${IMAGE_TAG}"
                 sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:latest ./app"
             }
@@ -62,9 +62,30 @@ pipeline {
             }
         }
 
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo "Rolling update: ${DEPLOYMENT} -> ${IMAGE_NAME}:${IMAGE_TAG}"
+                withKubeConfig([credentialsId: 'kubeconfig-taskhub']) {
+                    sh '''
+                        kubectl set image deployment/${DEPLOYMENT} \
+                            ${CONTAINER_NAME}=${IMAGE_NAME}:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Rollout') {
+            steps {
+                echo 'Checking rollout status...'
+                withKubeConfig([credentialsId: 'kubeconfig-taskhub']) {
+                    sh "kubectl rollout status deployment/${DEPLOYMENT} -n ${K8S_NAMESPACE} --timeout=90s"
+                }
+            }
+        }
+
         stage('Cleanup') {
             steps {
-                // Purani images hata kar disk space bachao
                 echo 'Cleaning up dangling images...'
                 sh 'docker image prune -f || true'
             }
@@ -73,14 +94,13 @@ pipeline {
 
     post {
         success {
-            echo "Image ${IMAGE_NAME}:${IMAGE_TAG} successfully pushed to Docker Hub."
+            echo "Deployed ${IMAGE_NAME}:${IMAGE_TAG} to Kubernetes successfully."
         }
         failure {
-            echo 'Pipeline failed - check the stage above for the error.'
+            echo 'Pipeline failed. Kubernetes keeps previous working pods running if rollout failed (no downtime).'
         }
         always {
             sh 'docker logout || true'
         }
     }
 }
-
