@@ -1,0 +1,20 @@
+# app-service.yaml
+#
+# type: NodePort - matlab ye service minikube ke node par ek fixed
+# port (30080) khol deti hai, jahan se browser access kar sakta hai.
+# Database wali Service (ClusterIP) se farq yehi hai: db sirf andar
+# se accessible thi, app ko bahar se access karna hai.
+#
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskhub-app-service
+  namespace: taskhub
+spec:
+  type: NodePort
+  selector:
+    app: taskhub-app
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30080

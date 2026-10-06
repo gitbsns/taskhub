@@ -1,0 +1,16 @@
+# configmap.yaml
+#
+# Ye sirf non-secret settings hain - leak hone se koi risk nahi,
+# isliye ye file git mein commit ho sakti hai.
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taskhub-config
+  namespace: taskhub
+data:
+  DB_HOST: "taskhub-db"      # Service ka naam - DNS se resolve hoga (Step 5 mein banayenge)
+  DB_PORT: "5432"
+  DB_USER: "taskhub"
+  DB_NAME: "taskhub"
+  PORT: "3000"

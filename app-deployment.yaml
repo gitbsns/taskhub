@@ -1,0 +1,87 @@
+# app-deployment.yaml
+#
+# Ye app ka Pod banata hai, jo Jenkins ne Docker Hub pe push kiya tha.
+# Image tag "2" (ya jo latest build number ho) - "latest" ki jagah
+# specific number use karna production practice hai, taake pata rahe
+# exactly kaunsa build chal raha hai.
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskhub-app
+  namespace: taskhub
+  labels:
+    app: taskhub-app
+spec:
+  replicas: 2   # do copies - ek crash ho to doosra traffic sambhal le
+  selector:
+    matchLabels:
+      app: taskhub-app
+  template:
+    metadata:
+      labels:
+        app: taskhub-app
+    spec:
+      containers:
+        - name: taskhub-app
+          image: ahbdoc/taskhub-app:2   # apna Docker Hub username + Jenkins build number
+          ports:
+            - containerPort: 3000
+          env:
+            # Non-secret settings - ConfigMap se
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: taskhub-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: taskhub-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: taskhub-config
+                  key: DB_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: taskhub-config
+                  key: DB_NAME
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: taskhub-config
+                  key: PORT
+            # Secret values - Secret se
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskhub-secret
+                  key: DB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: taskhub-secret
+                  key: JWT_SECRET
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskhub-secret
+                  key: ADMIN_PASSWORD
+          # liveness: "process zinda hai?" - fail ho to Kubernetes pod restart karega
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          # readiness: "traffic lene ke liye tayyar hai?" - fail ho to Service
+          # is pod ko traffic bhejna band kar dega (jab tak DB se connect na ho)
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10

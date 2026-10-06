@@ -1,0 +1,16 @@
+# db-pvc.yaml
+#
+# Ye Kubernetes se "storage maangne" ki request hai.
+# Bina isके, pod delete hone par saara database data bhi mit jata.
+#
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: taskhub-db-pvc
+  namespace: taskhub
+spec:
+  accessModes:
+    - ReadWriteOnce   # ek waqt mein sirf ek pod isay likh sakta hai (database ke liye yehi sahi hai)
+  resources:
+    requests:
+      storage: 1Gi

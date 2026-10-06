@@ -1,0 +1,37 @@
+# jenkins-rbac.yaml
+#
+# Jenkins ko poora cluster-admin nahi, sirf "taskhub" namespace ke
+# andar Deployments update karne ki permission.
+#
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-deployer
+  namespace: taskhub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-deploy-role
+  namespace: taskhub
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-deploy-binding
+  namespace: taskhub
+subjects:
+  - kind: ServiceAccount
+    name: jenkins-deployer
+    namespace: taskhub
+roleRef:
+  kind: Role
+  name: jenkins-deploy-role
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,19 @@
+# db-service.yaml
+#
+# Ye db Pod ko ek stable naam/address deta hai.
+# Pods ka IP badalta rehta hai (restart hone par), Service ka naam nahi badalta.
+# type: ClusterIP matlab ye sirf cluster ke andar accessible hai, bahar se nahi -
+# database ko kabhi bahar expose nahi karna chahiye.
+#
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskhub-db      # yehi naam configmap.yaml mein DB_HOST se match karta hai
+  namespace: taskhub
+spec:
+  type: ClusterIP
+  selector:
+    app: taskhub-db     # ye Service un Pods ko dhoondega jinke label "app: taskhub-db" hai
+  ports:
+    - port: 5432
+      targetPort: 5432

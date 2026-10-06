@@ -1,0 +1,58 @@
+# db-deployment.yaml
+#
+# Ye PostgreSQL ka Pod banata hai - Compose ke "db:" service ka barabar.
+# replicas: 1 hi rakha hai - database ke multiple copies ek saath
+# chalana data corruption ka risk hai, isliye scale nahi karte.
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskhub-db
+  namespace: taskhub
+  labels:
+    app: taskhub-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: taskhub-db
+  template:
+    metadata:
+      labels:
+        app: taskhub-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine   # apna image nahi - official Docker Hub image
+          ports:
+            - containerPort: 5432
+          env:
+            # POSTGRES_USER aur POSTGRES_DB seedha likhe ja sakte hain (secret nahi)
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: taskhub-config
+                  key: DB_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: taskhub-config
+                  key: DB_NAME
+            # Password Secret se aata hai
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskhub-secret
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "taskhub"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: taskhub-db-pvc

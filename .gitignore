@@ -12,3 +12,8 @@ node_modules/
 npm-debug.log
 .DS_Store
 .vscode/
+
+# Kubernetes credentials for Jenkins
+taskhub-sa-token.txt
+taskhub-ca.crt
+taskhub-kubeconfig.yaml
